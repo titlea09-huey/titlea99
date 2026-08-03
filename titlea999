@@ -1,0 +1,281 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local localPlayer = Players.LocalPlayer
+local showNameTag = true
+local showEsp = true
+
+local trackingTarget = nil
+local trackingConnection = nil
+local trackedButtonRef = nil
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "TeleportUI"
+ScreenGui.Parent = game.CoreGui
+ScreenGui.ResetOnSpawn = false
+
+-- ปุ่มเปิด-ปิด UI (เปลี่ยนชื่อเป็น titlea)
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Parent = ScreenGui
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ToggleBtn.Position = UDim2.new(0, 10, 0, 10)
+ToggleBtn.Size = UDim2.new(0, 110, 0, 35)
+ToggleBtn.Font = Enum.Font.SourceSansBold
+ToggleBtn.Text = "titlea"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.TextSize = 14
+
+-- หน้าต่างหลัก (ปรับสีพื้นหลังเป็นฟ้าผสมแดงนิดๆ)
+local MainFrame = Instance.new("Frame")
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(35, 45, 75)
+MainFrame.Position = UDim2.new(0, 10, 0, 55)
+MainFrame.Size = UDim2.new(0, 220, 0, 380)
+MainFrame.Visible = true
+
+local Title = Instance.new("TextLabel")
+Title.Parent = MainFrame
+Title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Font = Enum.Font.SourceSansBold
+Title.Text = "รายชื่อผู้เล่น"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 15
+
+-- ปุ่มกากบาทมุมขวาบนของ MainFrame (กดปิด UI)
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Parent = Title
+CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+CloseBtn.Position = UDim2.new(1, -30, 0, 0)
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Font = Enum.Font.SourceSansBold
+CloseBtn.Text = "❌"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextSize = 12
+
+CloseBtn.MouseButton1Click:Connect(function()
+	MainFrame.Visible = false
+end)
+
+local ToggleTagBtn = Instance.new("TextButton")
+ToggleTagBtn.Parent = MainFrame
+ToggleTagBtn.BackgroundColor3 = Color3.fromRGB(70, 40, 40)
+ToggleTagBtn.Position = UDim2.new(0, 5, 0, 305)
+ToggleTagBtn.Size = UDim2.new(1, -10, 0, 30)
+ToggleTagBtn.Font = Enum.Font.SourceSansBold
+ToggleTagBtn.Text = "ชื่อบนหัว: เปิด"
+ToggleTagBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleTagBtn.TextSize = 14
+
+local ToggleEspBtn = Instance.new("TextButton")
+ToggleEspBtn.Parent = MainFrame
+ToggleEspBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+ToggleEspBtn.Position = UDim2.new(0, 5, 0, 340)
+ToggleEspBtn.Size = UDim2.new(1, -10, 0, 30)
+ToggleEspBtn.Font = Enum.Font.SourceSansBold
+ToggleEspBtn.Text = "ไฮไลต์แดง: เปิด"
+ToggleEspBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleEspBtn.TextSize = 14
+
+local ScrollingFrame = Instance.new("ScrollingFrame")
+ScrollingFrame.Parent = MainFrame
+ScrollingFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+ScrollingFrame.Position = UDim2.new(0, 5, 0, 35)
+ScrollingFrame.Size = UDim2.new(1, -10, 1, -115)
+ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScrollingFrame.ScrollBarThickness = 6
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = ScrollingFrame
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 5)
+
+-- ฟังก์ชันสร้างชื่อบนหัว
+local function createNameTag(character, playerName)
+	if not character:FindFirstChild("Head") then return end
+	if character:FindFirstChild("CustomNameTag") then return end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "CustomNameTag"
+	billboard.Adornee = character.Head
+	billboard.Size = UDim2.new(0, 100, 0, 40)
+	billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = character
+
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Parent = billboard
+	textLabel.BackgroundTransparency = 1
+	textLabel.Size = UDim2.new(1, 0, 1, 0)
+	textLabel.Font = Enum.Font.SourceSansBold
+	textLabel.Text = playerName
+	textLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+	textLabel.TextSize = 16
+	textLabel.TextStrokeTransparency = 0
+end
+
+-- ฟังก์ชันสร้างไฮไลต์แดง (ESP)
+local function createHighlight(character)
+	if character:FindFirstChild("CustomHighlight") then return end
+
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "CustomHighlight"
+	highlight.Adornee = character
+	highlight.FillColor = Color3.fromRGB(255, 0, 0)
+	highlight.FillTransparency = 0.5
+	highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+	highlight.OutlineTransparency = 0
+	highlight.Parent = character
+end
+
+local function setupPlayer(player)
+	player.CharacterAdded:Connect(function(character)
+		task.wait(1)
+		if showNameTag then createNameTag(character, player.Name) end
+		if showEsp then createHighlight(character) end
+	end)
+	if player.Character then
+		if showNameTag then createNameTag(player.Character, player.Name) end
+		if showEsp then createHighlight(player.Character) end
+	end
+end
+
+-- ระบบตามติดเป้าหมายซ้ำๆ
+local function stopTracking()
+	trackingTarget = nil
+	if trackingConnection then
+		trackingConnection:Disconnect()
+		trackingConnection = nil
+	end
+	if trackedButtonRef then
+		trackedButtonRef.Text = "ปิด"
+		trackedButtonRef.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+		trackedButtonRef = nil
+	end
+end
+
+local function startTracking(player, trackBtn)
+	if trackingTarget == player then
+		stopTracking()
+		return
+	end
+
+	stopTracking()
+	trackingTarget = player
+	trackedButtonRef = trackBtn
+	trackBtn.Text = "เปิด"
+	trackBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
+
+	trackingConnection = RunService.RenderStepped:Connect(function()
+		if trackingTarget and trackingTarget.Character and trackingTarget.Character:FindFirstChild("HumanoidRootPart") then
+			local targetPart = trackingTarget.Character.HumanoidRootPart
+			if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+				localPlayer.Character.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+			end
+		else
+			stopTracking()
+		end
+	end)
+end
+
+-- อัปเดตรายชื่อผู้เล่น
+local function updatePlayerList()
+	stopTracking()
+	for _, child in ipairs(ScrollingFrame:GetChildren()) do
+		if child:IsA("TextButton") then
+			child:Destroy()
+		end
+	end
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= localPlayer then
+			setupPlayer(player)
+
+			local pBtn = Instance.new("TextButton")
+			pBtn.Parent = ScrollingFrame
+			pBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+			pBtn.Size = UDim2.new(1, -5, 0, 35)
+			pBtn.Font = Enum.Font.SourceSansBold
+			pBtn.Text = "       " .. player.Name
+			pBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			pBtn.TextSize = 14
+			pBtn.TextXAlignment = Enum.TextXAlignment.Left
+
+			local icon = Instance.new("ImageLabel")
+			icon.Parent = pBtn
+			icon.BackgroundTransparency = 1
+			icon.Position = UDim2.new(0, 3, 0, 2)
+			icon.Size = UDim2.new(0, 31, 0, 31)
+			icon.Image = "rbxthumb://type=AvatarHeadShot&id=" .. player.UserId .. "&w=150&h=150"
+
+			pBtn.MouseButton1Click:Connect(function()
+				if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+					local targetPart = player.Character.HumanoidRootPart
+					if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+						localPlayer.Character.HumanoidRootPart.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+					end
+				end
+			end)
+
+			local trackBtn = Instance.new("TextButton")
+			trackBtn.Parent = pBtn
+			trackBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+			trackBtn.Position = UDim2.new(1, -45, 0, 4)
+			trackBtn.Size = UDim2.new(0, 40, 0, 27)
+			trackBtn.Font = Enum.Font.SourceSansBold
+			trackBtn.Text = "ปิด"
+			trackBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			trackBtn.TextSize = 12
+
+			trackBtn.MouseButton1Click:Connect(function()
+				startTracking(player, trackBtn)
+			end)
+		end
+	end
+	ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y)
+end
+
+Players.PlayerAdded:Connect(updatePlayerList)
+Players.PlayerRemoving:Connect(updatePlayerList)
+updatePlayerList()
+
+ToggleBtn.MouseButton1Click:Connect(function()
+	MainFrame.Visible = not MainFrame.Visible
+end)
+
+ToggleTagBtn.MouseButton1Click:Connect(function()
+	showNameTag = not showNameTag
+	if showNameTag then
+		ToggleTagBtn.Text = "ชื่อบนหัว: เปิด"
+		ToggleTagBtn.BackgroundColor3 = Color3.fromRGB(70, 40, 40)
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player.Character then createNameTag(player.Character, player.Name) end
+		end
+	else
+		ToggleTagBtn.Text = "ชื่อบนหัว: ปิด"
+		ToggleTagBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player.Character and player.Character:FindFirstChild("CustomNameTag") then
+				player.Character.CustomNameTag:Destroy()
+			end
+		end
+	end
+end)
+
+ToggleEspBtn.MouseButton1Click:Connect(function()
+	showEsp = not showEsp
+	if showEsp then
+		ToggleEspBtn.Text = "ไฮไลต์แดง: เปิด"
+		ToggleEspBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player.Character then createHighlight(player.Character) end
+		end
+	else
+		ToggleEspBtn.Text = "ไฮไลต์แดง: ปิด"
+		ToggleEspBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player.Character and player.Character:FindFirstChild("CustomHighlight") then
+				player.Character.CustomHighlight:Destroy()
+			end
+		end
+	end
+end)
